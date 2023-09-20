@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>To-Do List App</title>
+    <style>
+        /* Add your CSS styles here */
+        .completed {
+            text-decoration: line-through;
+        }
+
+
+
+    body {
+        font-family: Arial, sans-serif;
+        background-color: #f0f0f0;
+        margin: 0;
+        padding: 0;
+    }
+
+    h1 {
+        text-align: center;
+        background-color: #333;
+        color: #fff;
+        padding: 10px 0;
+        margin: 0;
+    }
+
+    div {
+        background-color: #fff;
+        padding: 10px;
+        margin: 10px;
+        border-radius: 5px;
+        box-shadow: 0 0 5px rgba(0, 0, 0, 0.2);
+    }
+
+    input[type="text"] {
+        width: 60%;
+        padding: 5px;
+        border: 1px solid #ccc;
+        border-radius: 3px;
+    }
+
+    select {
+        padding: 5px;
+        border: 1px solid #ccc;
+        border-radius: 3px;
+    }
+
+    button {
+        padding: 5px 10px;
+        background-color: #333;
+        color: #fff;
+        border: none;
+        cursor: pointer;
+        border-radius: 3px;
+    }
+
+    ul {
+        list-style-type: none;
+        padding: 0;
+    }
+
+    li {
+        background-color: #fff;
+        padding: 10px;
+        margin: 5px 0;
+        border-radius: 3px;
+        box-shadow: 0 2px 2px rgba(0, 0, 0, 0.1);
+    }
+
+    .completed {
+        text-decoration: line-through;
+    }
+
+    label {
+        margin-right: 5px;
+    }
+
+
+
+
+    </style>
+</head>
+<body>
+    <h1>To-Do List</h1>
+<!-- Section for adding tasks -->
+<div>
+    <form id="taskForm" method="POST" action="{% url 'add_task' %}">
+        {% csrf_token %}
+        <input type="text" name="title" placeholder="Task Title" required>
+        <textarea name="description" placeholder="Task Description" required></textarea>
+        <select name="priority" required>
+            <option value="low">Low</option>
+            <option value="medium">Medium</option>
+            <option value="high">High</option>
+        </select>
+        <input type="date" name="due_date" placeholder="Due Date">
+        <button type="submit">Add Task</button>
+    </form>
+</div>
+
+
+    <!-- Filter and Sort Options -->
+    <div>
+        <label for="filterSelect">Filter by:</label>
+        <select id="filterSelect" onchange="filterTasks()">
+            <option value="all">All</option>
+            <option value="completed">Completed</option>
+            <option value="pending">Pending</option>
+        </select>
+        <label for="sortSelect">Sort by:</label>
+        <select id="sortSelect" onchange="sortTasks()">
+            <option value="priority">Priority</option>
+            <option value="duedate">Due Date</option>
+        </select>
+    </div>
+
+<!-- Task list -->
+<ul id="taskList">
+    {% for task in tasks %}
+    <li class="{% if task.completed %} completed {% endif %}" data-priority="{{ task.priority }}" data-task-id="{{ task.id }}">
+        <input type="checkbox" id="task_{{ task.id }}" onclick="toggleTaskStatus({{ task.id }})">
+        {{ task.title }} (Priority: {{ task.priority }}, Due Date: {{ task.due_date|default:"None" }})
+        <button onclick="editTask(this)">Edit</button>
+        <button id="deleteTaskBtn_{{ task.id }}" onclick="deleteTask({{ task.id }})">Delete</button>
+
+    </li>
+    {% endfor %}
+</ul>
+
+
+
+    <script>
+        // JavaScript code for task management
+function addTask() {
+    const taskInput = document.getElementById("taskInput");
+    const dueDateInput = document.getElementById("dueDateInput");
+    const prioritySelect = document.getElementById("prioritySelect");
+    const taskText = taskInput.value.trim();
+    const dueDate = dueDateInput.value;
+    const taskPriority = prioritySelect.value;
+
+    if (taskText === "") return;
+
+    const taskList = document.getElementById("taskList");
+
+    const taskItem = document.createElement("li");
+    taskItem.setAttribute("data-priority", taskPriority);
+    taskItem.innerHTML = `
+        <input type="checkbox" onclick="toggleTaskStatus(this)">
+        ${taskText} (Priority: ${taskPriority}, Due Date: ${dueDate})
+        <button onclick="editTask(this)">Edit</button>
+        <button onclick="deleteTask(this)">Delete</button>
+    `;
+
+    taskList.appendChild(taskItem);
+    taskInput.value = "";
+    dueDateInput.value = "";
+    filterTasks();
+}
+
+function toggleTaskStatus(taskId) {
+    const checkbox = document.getElementById(`task_${taskId}`);
+    const isChecked = checkbox.checked;
+
+    fetch(`/update_task_status/${taskId}/`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': getCookie('csrftoken'),
+        },
+        body: JSON.stringify({ completed: isChecked }),
+    })
+    .then(response => {
+        if (!response.ok) {
+            throw new Error('Network response was not ok');
+        }
+        return response.json();
+    })
+    .then(data => {
+        // Handle success or update the UI as needed
+    })
+    .catch(error => {
+        console.error('There was a problem with the fetch operation:', error);
+    });
+}
+
+
+function deleteTask(taskId) {
+    console.log('Delete button clicked for task ID:', taskId);
+    fetch(`/delete_task/${taskId}/`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': getCookie('csrftoken'),
+        },
+    })
+    .then(response => {
+        if (!response.ok) {
+            throw new Error('Network response was not ok');
+        }
+        return response.json();
+    })
+    .then(data => {
+        if (data.status === 'success') {
+            // Remove the task element from the UI
+            const taskElement = document.getElementById(`task_${taskId}`);
+            if (taskElement) {
+                taskElement.remove();
+            }
+        } else {
+            // Handle the error case, e.g., display an error message
+        }
+    })
+    .catch(error => {
+        console.error('There was a problem with the fetch operation:', error);
+    });
+}
+
+function editTask(button) {
+    const taskItem = button.parentNode;
+    const taskText = taskItem.textContent.trim().split('(Priority:')[0];
+    const taskPriority = taskItem.getAttribute("data-priority");
+    const taskDueDate = taskItem.textContent.trim().split('Due Date:')[1].trim(); // Extract due date
+    document.getElementById("taskInput").value = taskText;
+    document.getElementById("dueDateInput").value = taskDueDate; // Populate due date input
+    document.getElementById("prioritySelect").value = taskPriority;
+    taskItem.remove();
+}
+
+        function filterTasks() {
+            const filterSelect = document.getElementById("filterSelect");
+            const taskList = document.getElementById("taskList");
+            const tasks = taskList.getElementsByTagName("li");
+
+            for (const task of tasks) {
+                const priority = task.getAttribute("data-priority");
+                const completed = task.classList.contains("completed");
+                const filterValue = filterSelect.value;
+
+                if (
+                    (filterValue === "completed" && !completed) ||
+                    (filterValue === "pending" && completed)
+                ) {
+                    task.style.display = "none";
+                } else {
+                    task.style.display = "block";
+                }
+            }
+        }
+
+        function sortTasks() {
+    const sortSelect = document.getElementById("sortSelect");
+    const taskList = document.getElementById("taskList");
+    const tasks = Array.from(taskList.getElementsByTagName("li"));
+
+    if (sortSelect.value === "priority") {
+        tasks.sort((a, b) => {
+            const priorityA = a.getAttribute("data-priority");
+            const priorityB = b.getAttribute("data-priority");
+            return priorityA.localeCompare(priorityB);
+        });
+    } else if (sortSelect.value === "duedate") {
+        tasks.sort((a, b) => {
+            const dueDateA = extractDueDate(a);
+            const dueDateB = extractDueDate(b);
+
+            if (dueDateA && dueDateB) {
+                return new Date(dueDateA) - new Date(dueDateB);
+            } else if (dueDateA) {
+                return -1; // A has a due date, B does not
+            } else if (dueDateB) {
+                return 1; // B has a due date, A does not
+            } else {
+                return 0; // Neither A nor B has a due date
+            }
+        });
+    }
+
+    taskList.innerHTML = "";
+    for (const task of tasks) {
+        taskList.appendChild(task);
+    }
+}
+
+function extractDueDate(taskItem) {
+    const taskText = taskItem.textContent;
+    const dueDateMatch = taskText.match(/Due Date: (\d{4}-\d{2}-\d{2})/);
+    
+    if (dueDateMatch && dueDateMatch[1]) {
+        return dueDateMatch[1];
+    }
+    
+    return null;
+}
+
+    </script>
+</body>
+</html>
